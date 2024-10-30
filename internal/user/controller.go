@@ -2,9 +2,11 @@ package user
 
 import (
 	"context"
-	"encoding/json" //transformamos a json
+	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/GonzaloGollo/GoPi/internal/domain"
 )
 
 type (
@@ -25,38 +27,28 @@ func MakeEndpoints(ctx context.Context, s Service) Controller {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			GetAllUser(w)
-			//status = 200          // indicamos el valor que queremos que reproduzca por status
-			//w.WriteHeader(status) // aqui escribimos en el header el valor del status
-			// fmt.Fprintf(w, `{"status": %d, "messege": "%s"}`, status, "success in get")
+			GetAllUser(ctx, s, w)
+
 		case http.MethodPost:
 			decode := json.NewDecoder(r.Body)
-			var u User
-			if err := decode.Decode(&u); err != nil {
+			var user domain.User
+			if err := decode.Decode(&user); err != nil {
 				MsgResponse(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			PostUser(w, u)
-			// status = 200
-			// w.WriteHeader(status)
-			// fmt.Fprintf(w, `{"status": %d, "messege": "%s"}`, status, "success in post")
+			PostUser(ctx, s, w, user)
+
 		default:
 			InvalidMethod(w)
-			// status = 404
-			// w.WriteHeader(status)
-			// fmt.Fprintf(w, `{"status": %d, "messege": "%s"}`, status, "not found")
+
 		}
 	}
 }
 
 func UserServer(w http.ResponseWriter, r *http.Request) {
-	// var status int
 	switch r.Method {
 	case http.MethodGet:
 		GetAllUser(w)
-		//status = 200          // indicamos el valor que queremos que reproduzca por status
-		//w.WriteHeader(status) // aqui escribimos en el header el valor del status
-		// fmt.Fprintf(w, `{"status": %d, "messege": "%s"}`, status, "success in get")
 	case http.MethodPost:
 		decode := json.NewDecoder(r.Body)
 		var u User
@@ -65,18 +57,18 @@ func UserServer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		PostUser(w, u)
-		// status = 200
-		// w.WriteHeader(status)
-		// fmt.Fprintf(w, `{"status": %d, "messege": "%s"}`, status, "success in post")
+
 	default:
 		InvalidMethod(w)
-		// status = 404
-		// w.WriteHeader(status)
-		// fmt.Fprintf(w, `{"status": %d, "messege": "%s"}`, status, "not found")
 	}
 }
 
-func GetAllUser(w http.ResponseWriter) {
+func GetAllUser(ctx context.Context, s Service, w http.ResponseWriter) {
+	users, err := s.GetAll(ctx)
+	if err != nil {
+		MsgResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	DataResponse(w, http.StatusOK, users)
 }
 
@@ -99,30 +91,34 @@ func DataResponse(w http.ResponseWriter, status int, users interface{}) {
 		return
 	}
 	w.WriteHeader(status)
-	fmt.Fprintf(w, `{"status": %d, "data":%s}`, status, value) //Fprintf para sobreescribir sobre el response
+	fmt.Fprintf(w, `{"status": %d, "data":%s}`, status, value)
 }
 
-func PostUser(w http.ResponseWriter, data interface{}) {
-	user := data.(User) //  .() es para castear data a user
-
-	if user.FirstName == "" {
+func PostUser(ctx context.Context, s Service, w http.ResponseWriter, data interface{}) {
+	req := data.(CreateReq) // aca se castea Data a la forma de CreateReq para poder comunicarse con los mismo parametros
+	if req.FirstName == "" {
 		MsgResponse(w, http.StatusBadRequest, "First name is required")
 		return
 
 	}
-	if user.LastName == "" {
+	if req.LastName == "" {
 		MsgResponse(w, http.StatusBadRequest, "Last name is required")
 		return
 
 	}
-	if user.Email == "" {
+	if req.Email == "" {
 		MsgResponse(w, http.StatusBadRequest, "Email is required")
 		return
 
 	}
 
-	maxId++
-	user.ID = maxId
-	users = append(users, user)
+	user, err := s.Create(ctx, req.FirstName, req.LastName, req.Email)
+	if err != nil {
+		MsgResponse(w, http.StatusInternalServerError, err.Error())
+	}
+
+	// maxId++
+	// req.ID = maxId
+	// users = append(users, req)
 	DataResponse(w, http.StatusCreated, user)
 }
