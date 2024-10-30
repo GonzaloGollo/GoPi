@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-
-	"github.com/GonzaloGollo/GoPi/internal/domain"
 )
 
 type (
@@ -31,35 +29,17 @@ func MakeEndpoints(ctx context.Context, s Service) Controller {
 
 		case http.MethodPost:
 			decode := json.NewDecoder(r.Body)
-			var user domain.User
-			if err := decode.Decode(&user); err != nil {
+			var structUser CreateReq // la estructura que tenemos que revisar es CreateReq
+			if err := decode.Decode(&structUser); err != nil {
 				MsgResponse(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			PostUser(ctx, s, w, user)
+			PostUser(ctx, s, w, structUser)
 
 		default:
 			InvalidMethod(w)
 
 		}
-	}
-}
-
-func UserServer(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		GetAllUser(w)
-	case http.MethodPost:
-		decode := json.NewDecoder(r.Body)
-		var u User
-		if err := decode.Decode(&u); err != nil {
-			MsgResponse(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		PostUser(w, u)
-
-	default:
-		InvalidMethod(w)
 	}
 }
 
@@ -81,7 +61,6 @@ func InvalidMethod(w http.ResponseWriter) {
 	status := http.StatusNotFound
 	w.WriteHeader(status)
 	fmt.Fprintf(w, `{"status": %d, "message":"method doesn't exist"}`, status)
-
 }
 
 func DataResponse(w http.ResponseWriter, status int, users interface{}) {
